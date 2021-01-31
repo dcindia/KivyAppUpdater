@@ -1,0 +1,7 @@
+{
+    "platform": "ANDROID",
+    "source": "GITHUB/dcindia/matrix-calculator",
+    "min_version": 2.2,
+    "min_android_api": 29,
+    "notify_level": "EVERYTIME"
+}
