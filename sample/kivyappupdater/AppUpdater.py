@@ -210,7 +210,6 @@ class UpdateDialog(MDDialog):
 
     def __init__(self, updater, **kwargs):
         self.updater_instance = updater
-        # self.download_thread = threading.Thread(target=self.updater_instance.on_update_confirmed)
 
         self.title = "Update Available!"
         self.type = "custom"
@@ -234,8 +233,7 @@ class UpdateDialog(MDDialog):
         self.updater_instance.utils.allow_download = False
 
     def dismissed(self, instance):
-        """Stops downloading process and dismiss dialog if user cancelled download"""
-        # self.updater_instance.utils.allow_download = False
+        """Dismiss dialog if user cancelled download"""
         self.dismiss()
 
     def user_confirmed(self, instance, touch):
@@ -275,7 +273,9 @@ class Updater:
             Bridge.trigger_intent(download_url)
 
     def on_update_downloaded(self):
-        # TODO: Write code to install downloaded update
+        """
+        Launches App Installation Process
+        """
 
         print("[AppUpdater] Update Downloaded!")
         Bridge.install_intent(self.utils.guess_filename())
@@ -294,6 +294,5 @@ class Updater:
             self.dialog.set_normal_height()
             self.dialog.open()
             print("[AppUpdater] Update Found! Showing Update Dialog.")
-            # Bridge.install_intent(self.utils.guess_filename())  # Temporary for testing only, should be in on_update_downloaded
         else:
             print("[AppUpdater] No Update Available !")

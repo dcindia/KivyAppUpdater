@@ -19,18 +19,19 @@ PackageInstaller = autoclass('android.content.pm.PackageInstaller')
 
 
 def get_data_dir():
+    """Provides External Storage Directory: /storage/emulated/0/Android/data/<package-name>/files"""
     _external_storage_path = PythonActivity.getExternalFilesDir(None).getPath()
     print(_external_storage_path)
     return _external_storage_path
 
 
 def package_name():
-
+    """Provides package-name: org.dcindia.appupdater"""
     return context.getPackageName()
 
 
 def current_version(app_info):
-
+    """Provides version name(not code) : 1.0"""
     return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName
 
 
@@ -53,6 +54,7 @@ def trigger_intent(uri):
 
 
 def receieve_install_intent(intent):
+    """Receives intent from package manager for getting user confirmation"""
     # FIXME: MIUI phones have protection features for not allowing app to install through Session API
     # TODO: Try to Install only if status check for extras is favourable.
 
@@ -65,7 +67,7 @@ def receieve_install_intent(intent):
 
 @mainthread
 def install_intent(file_name: str):
-    # FIXME: Can't use threads here, fix mentioned in pyjnius docs
+    """Handles all communication with Package Installler"""
     try:
         PackageInstaller = autoclass('android.content.pm.PackageInstaller')
         packageInstaller = context.getPackageManager().getPackageInstaller()
