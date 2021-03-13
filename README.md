@@ -50,7 +50,7 @@ In your `buildozer.spec` file, do the following:
 # (list) Permissions
 android.permissions = INTERNET, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE, INSTALL_PACKAGES, REQUEST_INSTALL_PACKAGES
 # (int) Minimum API your APK will support.
-android.minapi = 22
+android.minapi = 26
 ```
 
 ## We always need more [Future Plans]
