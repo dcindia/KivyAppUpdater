@@ -9,30 +9,44 @@ from kivy.clock import mainthread
 if platform == "android":
     from android import activity
 
-PythonActivity = autoclass('org.kivy.android.PythonActivity')
-currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
-context = cast('android.content.Context', currentActivity.getApplicationContext())
+    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    currentActivity = cast('android.app.Activity', PythonActivity.mActivity)
+    context = cast('android.content.Context', currentActivity.getApplicationContext())
 
-Intent = autoclass('android.content.Intent')
-Uri = autoclass('android.net.Uri')
-PackageInstaller = autoclass('android.content.pm.PackageInstaller')
+    Intent = autoclass('android.content.Intent')
+    Uri = autoclass('android.net.Uri')
+    PackageInstaller = autoclass('android.content.pm.PackageInstaller')
+    Build = autoclass('android.os.Build')
 
 
 def get_data_dir():
     """Provides External Storage Directory: /storage/emulated/0/Android/data/<package-name>/files"""
+
     _external_storage_path = PythonActivity.getExternalFilesDir(None).getPath()
-    print(_external_storage_path)
     return _external_storage_path
 
 
 def package_name():
     """Provides package-name: org.dcindia.appupdater"""
     return context.getPackageName()
+    # return "org.dcindia.appupdater"
 
 
 def current_version(app_info):
     """Provides version name(not code) : 1.0"""
     return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName
+    # return "1.0"
+
+
+def compatible_abi():
+    return Build.SUPPORTED_ABIS
+    # return ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
+
+
+def sdk_version():
+    Version = autoclass('android.os.Build$VERSION')
+    return int(Version.SDK_INT)
+    # return 28
 
 
 def trigger_intent(uri):
@@ -64,6 +78,7 @@ def receieve_install_intent(intent):
     confirmIntent = Intent(extras.get(Intent.EXTRA_INTENT))
     confirmIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     currentActivity.startActivity(confirmIntent)
+
 
 @mainthread
 def install_intent(file_name: str):
@@ -100,13 +115,9 @@ def install_intent(file_name: str):
         activity.bind(on_new_intent=receieve_install_intent)
         session.commit(statusReceiver)
 
-
     except Exception as error:
         import traceback
         print(traceback.format_exc())
         print("[AppUpdater]", error)
     finally:
         session.close()
-
-
-

@@ -1,13 +1,7 @@
 import urllib.request
-import json
-import platform
-import re
-from kivy.clock import mainthread, Clock
-from kivy.lang import Builder
+from kivy.clock import mainthread
 import threading
-from kivy.properties import BooleanProperty, NumericProperty, ListProperty
-from kivymd.app import MDApp
-from kivy.uix.boxlayout import BoxLayout
+from kivy.properties import ListProperty
 from kivy.uix.label import Label
 from kivy.network.urlrequest import UrlRequest
 from kivy.uix.screenmanager import Screen
@@ -16,7 +10,6 @@ from kivymd.uix.dialog import MDDialog
 from kivymd.uix.progressbar import MDProgressBar
 import jnius
 from . import UpdaterBridge as Bridge
-from . import UpdaterParser as Parser
 
 import os
 import certifi
@@ -35,6 +28,8 @@ Constants = {
 
 # ////// ----------------------------\\\\\\\#
 
+
+# //// Custom Decorators ////// #
 def run_in_thread(function):
     """Decorator to run a function that does not return anything, directly in thread"""
     from functools import wraps
@@ -56,87 +51,62 @@ def handle_exception(function):
             function(*args, **kwargs)
         except Exception as error:
             print("[AppUpdater]", error)
+            import traceback
+            traceback.print_exc()
         finally:
             jnius.detach()
 
     return handler
+# ////// ---------------------------- \\\\\\\ #
 
 
-class UpdaterFetch:
+def compare_version(current_version, fetched_version):
     """
-    Fetches needed resources from web
+    Compare two versions and checks if fetched version greater than current version.
+    :param current_version: Version Code obtained from Package Manager of host system
+    :param fetched_version: Version code obtained from remote source
+    :return: True if fetched_version > current_version, otherwise false
     """
-
-    def download_url(self, source, version_url):
-        """
-        Provides url from where update needs to be downloaded. Actual download in case of Github. In other cases,
-        only intent is fired.
-        :param version_url: Helps to fetch download url. In Playstore and Amazon they are download_url themselves.
-        :param source: Services where application can be stored and distributed.
-        :return: Ready-to-use url directly used to reach binary package.
-        """
-
-        if source == "GITHUB":
-
-            github_json = {'assets': None}
-            headers = {'Accept': "application/vnd.github.v3+json",
-                       'User-Agent': "Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
-            update_url = urllib.request.Request(version_url, headers=headers)
-
-            github_json = json.loads(urllib.request.urlopen(update_url, timeout=5).read())
-
-            absolute_url = github_json['assets'][0]['browser_download_url']
-            redirect = urllib.request.urlopen(absolute_url)
-            final_url = redirect.geturl()
-            return final_url
-        elif source == "PLAYSTORE":
-            intent_url = "market://" + Constants['PLAY_STORE_URL'].split('/')[-1].format(name=version_url)
-            return intent_url
-        elif source == "AMAZON":
-            intent_url = Constants['AMAZON_URL'] + version_url
-            return intent_url
-
-    def latest_version(self, source, version_url):
-        """
-        Query for latest version code available from remote sources.
-        :param source: services where application can be stored and distributed.
-        :param version_url: URL of service where latest version of app resides.
-        :return version: Trimmed version code gained from source.
-        """
-        raw_version = None
-
-        if source == "PLAYSTORE":
-            update_website = urllib.request.urlopen(version_url, timeout=5).read()
-            in_version = re.findall(r"Version.*?htlgb\">.*?</span>", str(update_website))
-            raw_version = re.sub(r"<.*?>", '', in_version[-1])
-
-        elif source == "GITHUB":
-            headers = {"Accept": "application/vnd.github.v3+json",
-                       "User-Agent": "Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11"}
-            request = urllib.request.Request(version_url, headers=headers)
-            response = urllib.request.urlopen(request, timeout=5)
-            github_json = json.loads(response.read())
-            raw_version = github_json['tag_name']
-
-        elif source == "AMAZON":
-            # FIXME: This part is returning captcha verification due to anti-scraping policies of amazon.com
-            # Using amazon.in fixes above problem but not sure if it works everytime.
-
-            headers = {'User-Agent': "Mozilla/5.0 (X11; U; Linux i686) Gecko/20071127 Firefox/2.0.0.11",
-                       'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"}
-            update_url = urllib.request.Request(version_url, headers=headers)
-
-            update_website = urllib.request.urlopen(update_url, timeout=5).read()
-            in_version = re.findall(r">Version:<.*?>.*?</span>", str(update_website))
-            raw_version = re.sub(r"<.*?>", '', in_version[-1])
-
-        trimmed_version = re.sub(r'[^0-9?!\\.]', '', raw_version)
-        version = re.sub(r'\\.(\\.|$)', r"\\.0$1", trimmed_version)
-
-        return version
+    current_version = str(current_version)
+    fetched_version = str(fetched_version)
+    current_parts = current_version.split(".")
+    fetched_parts = fetched_version.split(".")
+    part_length = max(len(current_parts), len(fetched_parts))
+    for k in range(0, part_length):
+        current_compare_part = 0
+        fetched_compare_part = 0
+        if len(current_parts) > k:
+            current_compare_part = current_parts[k]
+        if len(fetched_parts) > k:
+            fetched_compare_part = fetched_parts[k]
+        if int(current_compare_part) < int(fetched_compare_part):
+            return True
+    else:
+        return False
 
 
-class UpdaterUtils:
+def resolve_update_source(source: str):
+    update_info['source'] = source.split("/")[0]
+
+    if update_info['source'] == "GITHUB":
+        update_info['source-path'] = source[7:]
+    else:
+        update_info['source-path'] = Bridge.package_name()
+
+    source_path = update_info['source-path']
+    if update_info['source'] == 'GITHUB':
+        update_url = Constants["GITHUB_URL"] + source_path + '/releases/latest'
+    elif update_info['source'] == 'AMAZON':
+        update_url = Constants["AMAZON_URL"] + source_path
+    elif update_info['source'] == 'PLAYSTORE':
+        update_url = Constants["PLAY_STORE_URL"].format(name=source_path)
+    else:
+        update_url = False
+
+    update_info['version_url'] = update_url
+
+
+class UpdaterDownloader:
     """
     This class provides some useful functions which will perform general tasks required for updating.
     Re-usable for other purposes wherever required.
@@ -145,7 +115,7 @@ class UpdaterUtils:
     allow_download = True
 
     def guess_filename(self):
-        return '{}_update.apk'.format(update_info['latest_version'])
+        return 'v{}_update.apk'.format(update_info['latest_version'])
 
     def file_downloader(self, download_url, filepath="AppUpdater/install.apk", caller_instance=None):
         """
@@ -153,7 +123,7 @@ class UpdaterUtils:
         :param caller_instance: Updater instance to gain greater control over other parts of program.
         :param download_url:
         :param filepath: Contains name and path where file going to be downloaded
-        :return: 
+        :return:
         """
 
         @mainthread
@@ -175,31 +145,10 @@ class UpdaterUtils:
             """Initiates post download processes through Updater class"""
             caller_instance.on_update_downloaded()
 
-        download = UrlRequest(download_url, on_progress=update_progress, on_success=update_downloaded,
+        redirect = urllib.request.urlopen(download_url)  # without redirect unable to locate correct file
+        final_download_url = redirect.geturl()
+        download = UrlRequest(final_download_url, on_progress=update_progress, on_success=update_downloaded,
                               chunk_size=1024 * 100, file_path=filepath)
-
-    @staticmethod
-    def compare_version(current_version, fetched_version):
-        """
-        Compare two versions and checks if fetched version greater than current version.
-        :param current_version: Version Code obtained from Package Manager of host system
-        :param fetched_version: Version code obtained from remote source
-        :return: True if fetched_version > current_version, otherwise false
-        """
-        current_parts = current_version.split(".")
-        fetched_parts = fetched_version.split(".")
-        part_length = max(len(current_parts), len(fetched_parts))
-        for k in range(0, part_length):
-            current_compare_part = 0
-            fetched_compare_part = 0
-            if len(current_parts) > k:
-                current_compare_part = current_parts[k]
-            if len(fetched_parts) > k:
-                fetched_compare_part = fetched_parts[k]
-            if int(current_compare_part) < int(fetched_compare_part):
-                return True
-        else:
-            return False
 
 
 class UpdateDialog(MDDialog):
@@ -210,7 +159,6 @@ class UpdateDialog(MDDialog):
 
     def __init__(self, updater, **kwargs):
         self.updater_instance = updater
-        # self.download_thread = threading.Thread(target=self.updater_instance.on_update_confirmed)
 
         self.title = "Update Available!"
         self.type = "custom"
@@ -231,11 +179,10 @@ class UpdateDialog(MDDialog):
 
     def on_dismiss(self):
         """Mark Download Flag as False to stop download"""
-        self.updater_instance.utils.allow_download = False
+        self.updater_instance.downloader.allow_download = False
 
     def dismissed(self, instance):
-        """Stops downloading process and dismiss dialog if user cancelled download"""
-        # self.updater_instance.utils.allow_download = False
+        """Dismiss dialog if user cancelled download"""
         self.dismiss()
 
     def user_confirmed(self, instance, touch):
@@ -248,9 +195,11 @@ class UpdateDialog(MDDialog):
 
 class Updater:
     def __init__(self):
-        self.json_update_url = None
-        self.utils = UpdaterUtils()
-        self.fetch = UpdaterFetch()
+        self.update_source = None
+        self.downloader = UpdaterDownloader()
+        # self.fetch = UpdaterFetch()
+        from . import UpdaterFetch as fetch
+        self.fetch = fetch
         self.dialog = UpdateDialog(self)
 
         app_info['current_version'] = Bridge.current_version(app_info)
@@ -263,37 +212,39 @@ class Updater:
 
         fetch = self.fetch
         source = update_info['source']
-        version_url = update_info['version_url']
+
         if source == "GITHUB":
-            download_url = fetch.download_url(source, version_url)
+            download_url = fetch.download_url
             print("[AppUpdater] User confirmed update, starting download...")
-            file_path = os.path.join(Bridge.get_data_dir(), '{}_update.apk'.format(update_info['latest_version']))
-            self.utils.file_downloader(download_url, filepath=file_path, caller_instance=self)
+            file_path = os.path.join(Bridge.get_data_dir(), self.downloader.guess_filename())
+            self.downloader.file_downloader(download_url, filepath=file_path, caller_instance=self)
 
         elif source in ("PLAYSTORE", "AMAZON"):
             download_url = fetch.download_url(source, app_info['package_name'])
             Bridge.trigger_intent(download_url)
 
     def on_update_downloaded(self):
-        # TODO: Write code to install downloaded update
+        """
+        Launches App Installation Process
+        """
 
         print("[AppUpdater] Update Downloaded!")
-        Bridge.install_intent(self.utils.guess_filename())
-        
+        Bridge.install_intent(self.downloader.guess_filename())
 
     @run_in_thread
     @handle_exception
     def check_for_update(self):
         """Chief responsibility for checking if update is available from remote source."""
         global update_info
-        update_info = Parser.auto_fill(self.json_update_url)
-        latest_version = self.fetch.latest_version(update_info['source'], update_info['version_url'])
+        resolve_update_source(self.update_source)  # Converts update_source to much useful update_info
+
+        latest_version = self.fetch.resolve_version(update_info['source'], update_info['version_url'])
         update_info['latest_version'] = latest_version
-        is_update_available = self.utils.compare_version(app_info['current_version'], latest_version)
+
+        is_update_available = compare_version(app_info['current_version'], latest_version)
         if is_update_available:
             self.dialog.set_normal_height()
             self.dialog.open()
             print("[AppUpdater] Update Found! Showing Update Dialog.")
-            # Bridge.install_intent(self.utils.guess_filename())  # Temporary for testing only, should be in on_update_downloaded
         else:
             print("[AppUpdater] No Update Available !")
