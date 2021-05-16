@@ -9,6 +9,7 @@ from . import UpdaterBridge as Bridge
 from .AppUpdater import Constants, compare_version
 
 download_url = ''
+min_version = Bridge.current_version()
 github_json = None
 
 # Constants = AppUpdater.Constants
@@ -70,6 +71,10 @@ def resolve_version(source, version_url):
                 response = request.read()
                 # update_manifest (update.json)
                 update_manifest = json.loads(response)
+
+                if "min_version" in update_manifest.keys():
+                    global min_version
+                    min_version = update_manifest['min_version']
 
                 # Suitable Installable file to download
                 artifact = find_compatible_build(update_manifest)

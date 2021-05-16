@@ -24,7 +24,7 @@ updater.check_for_update()
 ```
 
 #### Step 3: (For Github only)
-You need to upload a file named `upload.json` in your github releases. 
+You need to upload a file named `update.json` in your github releases. 
 
 [Visit Wiki](https://github.com/dcindia/KivyAppUpdater/wiki/Format-of-update.json) for a detailed guide on format of json.
 

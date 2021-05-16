@@ -177,7 +177,7 @@ class UpdateDialog(MDDialog):
         print("Value Changed:", int(self.progress[0]))
         self.progress_bar.value = self.progress[0]
 
-    def on_dismiss(self):
+    def on_pre_dismiss(self):
         """Mark Download Flag as False to stop download"""
         self.updater_instance.downloader.allow_download = False
 
@@ -192,6 +192,9 @@ class UpdateDialog(MDDialog):
             self.content_cls.add_widget(self.progress_bar)
             self.updater_instance.on_update_confirmed()
 
+    def remove_ignore_button(self):
+        self.ids.button_box.remove_widget(self.ignore_button)
+
 
 class Updater:
     def __init__(self):
@@ -202,7 +205,7 @@ class Updater:
         self.fetch = fetch
         self.dialog = UpdateDialog(self)
 
-        app_info['current_version'] = Bridge.current_version(app_info)
+        app_info['current_version'] = Bridge.current_version()
         app_info['package_name'] = Bridge.package_name()
 
     @run_in_thread
@@ -240,9 +243,13 @@ class Updater:
 
         latest_version = self.fetch.resolve_version(update_info['source'], update_info['version_url'])
         update_info['latest_version'] = latest_version
+        update_info['min_version'] = self.fetch.min_version
 
         is_update_available = compare_version(app_info['current_version'], latest_version)
         if is_update_available:
+            if compare_version(app_info['current_version'], update_info['min_version']):
+                self.dialog.auto_dismiss = False
+                self.dialog.remove_ignore_button()
             self.dialog.set_normal_height()
             self.dialog.open()
             print("[AppUpdater] Update Found! Showing Update Dialog.")

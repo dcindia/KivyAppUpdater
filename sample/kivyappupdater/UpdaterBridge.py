@@ -32,7 +32,7 @@ def package_name():
     # return "org.dcindia.appupdater"
 
 
-def current_version(app_info):
+def current_version():
     """Provides version name(not code) : 1.0"""
     return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName
     # return "1.0"
